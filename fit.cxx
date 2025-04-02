@@ -44,7 +44,6 @@ int main(const int argc, const char* argv[]) {
   int dMax = atoi(argv[2]);
   gROOT->SetBatch();
 
-//ROOT::EnableImplicitMT(8);
   TFile *f_mc = TFile::Open("templates2.root");
   TFile *f_dat = TFile::Open("foo_dat_0.root");
 
@@ -60,15 +59,12 @@ int main(const int argc, const char* argv[]) {
     std::cout << "Processing bin n. " << iB << std::endl;
 
     TH2D *_mass_2d = static_cast<TH2D*>(f_dat->Get("hMassK0s"));
-//  TH2D *_reso = static_cast<TH2D*>(f_dat->Get("hPtInvReso"));
     if (!_mass_2d) {
       std::cout << "Mass histogram not found!" << std::endl;
       return 1;
     }
 
     TH1D* _mass = static_cast<TH1D*>(_mass_2d->ProjectionY(Form("_mass_1d_%d", iB), iB, iB));
-//  TH1D* _res = static_cast<TH1D*>(_reso->ProjectionY("_reso_1d", iB, iB));
-
     _mass->Scale(1. / _mass->GetBinContent(_mass->GetMaximumBin()));
 
     TH2D* chi2_prof = new TH2D(Form("chi2_prof_%d", iB), ";#delta;#sigma", 120, -0.010125, 0.019875, 74, 0.0005, 0.0745);
@@ -90,7 +86,6 @@ int main(const int argc, const char* argv[]) {
     tmp_dscb->SetParameter(4, 2.);
     tmp_dscb->SetParameter(6, 2.);
     for (int i{0}; i < 2; ++i)_mass->Fit(tmp_dscb, "QRM+", "", 0.47, 0.53);
-//  _mass->Write();
 
     for (int iD{dMin}; iD < dMax; ++iD) {
       for (int iS{1}; iS < 75; ++iS) {
@@ -106,12 +101,12 @@ int main(const int argc, const char* argv[]) {
         if (mass_mc_2 != nullptr) {
           TH1D* mass_mc = static_cast<TH1D*>(mass_mc_2->ProjectionY(Form("mass_mc_%d_%d", iD, iS), iB, iB));
 
-//        TF1* fitfun = new TF1("fun", fsig, 0., 0.6, 4);
-//        fitfun->FixParameter(1, 0.);
-//        fitfun->SetNpx(1000);
+//          TF1* fitfun = new TF1("fun", fsig, 0., 0.6, 4);
+//          fitfun->FixParameter(1, 0.);
+//          fitfun->SetNpx(1000);
 
           TF1* fitfun_ = new TF1("fun_", "gaus", 0., 0.6);
-//        fitfun_->SetNpx(1000);
+//          fitfun_->SetNpx(1000);
           mass_mc->Fit(fitfun_, "RQ+", "", 0., 0.6);
           fitfun_->FixParameter(1, fitfun_->GetParameter(1));
           fitfun_->FixParameter(2, fitfun_->GetParameter(2));
@@ -132,65 +127,28 @@ int main(const int argc, const char* argv[]) {
           fitfun->FixParameter(8, tmp_dscb->GetParameter(8));
 
           fitfun->SetParLimits(0, 0., 1.e2);
-          mass->Fit(fitfun, "QMB+", "", 0.47, 0.53); //mass->GetXaxis()->GetBinUpEdge(mass->FindBin(mass->GetMean() - 1.5 * mass->GetRMS())), mass->GetXaxis()->GetBinLowEdge(mass->FindBin(mass->GetMean() + 1.5 * mass->GetRMS())));
+          mass->Fit(fitfun, "QMB+", "", 0.47, 0.53);
 
           // get chi2
           chi2_tmp = fitfun->GetChisquare();
-//        mass_mc->Write();
+//          dir->cd();
+//          mass_mc->Write();
 
           delete fitfun_;
           delete fitfun;
         }
 
-         delete mass;
+        delete mass;
 
-//      std::cout << chi2_tmp << std::endl;
         chi2_prof->SetBinContent(iD + 1, iS, chi2_tmp);
 
 //      dir->cd();
 //      mass->Write();
-
       }
     }
 
-//    int bin_x_min = 0, bin_y_min = 0, bin_z_min = 0;
-//    chi2_prof->GetMinimumBin(bin_x_min, bin_y_min, bin_z_min);
-//    double x_min = chi2_prof->GetXaxis()->GetBinCenter(bin_x_min);
-//    double y_min = chi2_prof->GetYaxis()->GetBinCenter(bin_y_min);
-
- //   std::cout << x_min << " " << y_min << std::endl;
-
-//    TF2 fChi2("fChi2", "((x-[0])*(x-[0])/[1]/[1]-2.*[2]*(x-[0])*(y-[3])/[1]/[4]+(y-[3])*(y-[3])/[4]/[4])/(2.*(1.-[2]*[2]))+[5]", -0.01, 0.01, 0., 0.05);
-//    fChi2.SetParLimits(0, -0.01, 0.01);
-//    fChi2.SetParameter(0, x_min);
-//    fChi2.SetParLimits(1, 0., 0.1);
-//    fChi2.SetParLimits(3, 0., 0.05);
-//    fChi2.SetParameter(3, y_min);
-//    fChi2.SetParLimits(4, 0., 0.1);
-
-//  chi2_prof->Fit("fChi2", "M+");
-
-//  double mux = fChi2.GetParameter(0);
-//  double sigx = fChi2.GetParameter(1);
-//  double muy = fChi2.GetParameter(3);
-//  double sigy = fChi2.GetParameter(4);
-
-
-//  chi2_prof->GetXaxis()->SetRangeUser(chi2_prof->GetXaxis()->GetBinLowEdge(bin_x_min - 5), chi2_prof->GetXaxis()->GetBinUpEdge(bin_x_min + 5));
-//  chi2_prof->GetYaxis()->SetRangeUser(chi2_prof->GetYaxis()->GetBinLowEdge(bin_y_min - 2), chi2_prof->GetYaxis()->GetBinUpEdge(bin_y_min + 3));
-//  for (int i{0}; i < 4; ++i)chi2_prof->Fit("fChi2");
-
-//  double mux = fChi2.GetParameter(0);
-//  double sigx = fChi2.GetParameter(1);
-//  double muy = fChi2.GetParameter(3);
-//  double sigy = fChi2.GetParameter(4);
-
     fo->cd();
-//    _mass->Write();
     chi2_prof->Write();
-
-//  _res->GetXaxis()->SetRangeUser(_res->GetMean() - _res->GetRMS(), _res->GetMean() + _res->GetRMS());
-
   }
 
   fo->Close();
