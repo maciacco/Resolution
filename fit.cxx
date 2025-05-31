@@ -1,6 +1,7 @@
 #include <TFile.h>
 #include <TH1D.h>
 #include <TH2D.h>
+#include <TH3D.h>
 #include <TF1.h>
 #include <TF2.h>
 
@@ -42,10 +43,13 @@ int main(const int argc, const char* argv[]) {
 
   int dMin = atoi(argv[1]);
   int dMax = atoi(argv[2]);
+  std::string in_fname = argv[3];
+  in_fname = in_fname + ".root";
   gROOT->SetBatch();
 
+
   TFile *f_mc = TFile::Open("templates2.root");
-  TFile *f_dat = TFile::Open("foo_dat_0.root");
+  TFile *f_dat = TFile::Open(in_fname.data());
 
   TFile *fo = TFile::Open(Form("fits_%d_%d.root", dMin, dMax), "recreate");
 
@@ -58,21 +62,21 @@ int main(const int argc, const char* argv[]) {
   for (int iB{4}; iB < 41; ++iB){
     std::cout << "Processing bin n. " << iB << std::endl;
 
-    TH2D *_mass_2d = static_cast<TH2D*>(f_dat->Get("hMassK0s"));
-    if (!_mass_2d) {
+    TH3D *_mass_3d = static_cast<TH3D*>(f_dat->Get("hMassK0s"));
+    if (!_mass_3d) {
       std::cout << "Mass histogram not found!" << std::endl;
       return 1;
     }
 
-    TH1D* _mass = static_cast<TH1D*>(_mass_2d->ProjectionY(Form("_mass_1d_%d", iB), iB, iB));
+    TH1D* _mass = static_cast<TH1D*>(_mass_3d->ProjectionZ(Form("_mass_1d_%d", iB), 1, _mass_3d->GetNbinsX(), iB, iB));
     _mass->Scale(1. / _mass->GetBinContent(_mass->GetMaximumBin()));
 
-    TH2D* chi2_prof = new TH2D(Form("chi2_prof_%d", iB), ";#delta;#sigma", 120, -0.010125, 0.019875, 74, 0.0005, 0.0745);
+    TH3D* chi2_prof = new TH3D(Form("chi2_prof_%d", iB), ";Sample;#delta;#sigma", 20, 0., 20., 120, -0.010125, 0.019875, 74, 0.0005, 0.0745);
 
     TDirectory* dir = fo->mkdir(Form("%d_fits", iB));
 
     TF1* tmp_dscb = new TF1("tmp_dscb", DoubleSidedCB, 0.45, 0.5, 9);
-    tmp_dscb->SetParLimits(0, 1.e-7, 1.e5);
+    tmp_dscb->SetParLimits(0, 1.e-7, 1.e10);
     tmp_dscb->SetParLimits(1, 0.47, 0.5);
     tmp_dscb->SetParLimits(2, 0.0005, 0.01);
     tmp_dscb->SetParLimits(3, 10., 20.);
@@ -87,13 +91,16 @@ int main(const int argc, const char* argv[]) {
     tmp_dscb->SetParameter(6, 2.);
     for (int i{0}; i < 2; ++i)_mass->Fit(tmp_dscb, "QRM+", "", 0.47, 0.53);
 
+    _mass->Write();
+
+    for (int iSamp{0}; iSamp < 20; ++iSamp){
     for (int iD{dMin}; iD < dMax; ++iD) {
       for (int iS{1}; iS < 75; ++iS) {
-        TH1D* mass = new TH1D(*_mass);
+        TH1D* mass = static_cast<TH1D*>(_mass_3d->ProjectionZ(Form("_mass_1d_%d", iB), iSamp, iSamp, iB, iB));
         mass->SetName(Form("hMassFit_%d_%d", iD, iS));
         double chi2_tmp = 1.e6;
 
-        TH2D* mass_mc_2 = static_cast<TH2D*>(f_mc->Get(Form("hMass_%d_%d", iD, iS)));
+        TH2D* mass_mc_2 = static_cast<TH2D*>(f_mc->Get(Form("hMass_%d_%d", iD + 40, iS)));
 
         double x_bin = chi2_prof->GetXaxis()->GetBinCenter(iD);
         double y_bin = chi2_prof->GetYaxis()->GetBinCenter(iS);
@@ -119,14 +126,14 @@ int main(const int argc, const char* argv[]) {
           TF1* fitfun = new TF1("fun", DoubleSidedCB, 0., 0.6, 9);
           fitfun->FixParameter(1, fitfun_->GetParameter(1));
           fitfun->FixParameter(2, fitfun_->GetParameter(2));
-          fitfun->FixParameter(3, tmp_dscb->GetParameter(3));
-          fitfun->FixParameter(4, tmp_dscb->GetParameter(4));
-          fitfun->FixParameter(5, tmp_dscb->GetParameter(5));
-          fitfun->FixParameter(6, tmp_dscb->GetParameter(6));
-          fitfun->FixParameter(7, tmp_dscb->GetParameter(7));
-          fitfun->FixParameter(8, tmp_dscb->GetParameter(8));
+//          std::cout << "par 1 = " << fitfun->GetParameter(1) << std::endl;
+//          std::cout << "par 2 = " << fitfun->GetParameter(2) << std::endl;
+          for (int iP{3}; iP < 9; ++iP) {
+            if (iP == 7) continue;
+            fitfun->FixParameter(iP, tmp_dscb->GetParameter(iP));
+          }
 
-          fitfun->SetParLimits(0, 0., 1.e2);
+          fitfun->SetParLimits(0, 0., 1.e10);
           mass->Fit(fitfun, "QMB+", "", 0.47, 0.53);
 
           // get chi2
@@ -138,13 +145,16 @@ int main(const int argc, const char* argv[]) {
           delete fitfun;
         }
 
+//        delete mass;
+
+        chi2_prof->SetBinContent(iSamp, iD + 1, iS, chi2_tmp);
+
+        dir->cd();
+        mass->Write();
+
         delete mass;
-
-        chi2_prof->SetBinContent(iD + 1, iS, chi2_tmp);
-
-//      dir->cd();
-//      mass->Write();
       }
+    }
     }
 
     fo->cd();

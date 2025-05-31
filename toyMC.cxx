@@ -42,7 +42,8 @@ void toyMC() {
 
       // TH2D hPtPosNeg("hPrPtTmp", ";#it{p}_{T} (GeV/#it{c});#it{p}_{T} (GeV/#it{c})", 200, 0.f, 10.f, 200, 0.f, 10.f);
       // TH2D hArm("hArm", ";;", 200, -1., 1., 100., 0., 0.5);
-      TH2D hMass(Form("hMass_%d_%d", iD, iS), ";1 / #it{p}_{T};#it{M}", 100, 0., 10., 1200, 0, 0.6);
+      TH2D hMass(Form("hMass_%d_%d", iD, iS), ";1 / #it{p}_{T} (#it{c}/GeV);#it{M} (GeV/#it{c}^{2})", 100, 0., 10., 1200, 0, 0.6);
+      TH2D hMassPt(Form("hMass_%d_%d_vs_pt", iD, iS), ";#it{p}_{T} (GeV/#it{c});#it{M} (GeV/#it{c}^{2})", 100, 0., 10., 1200, 0, 0.6);
       for (uint64_t i = 0; i < kNtrials; ++i) {
         // initialise variables
         float pT_k0s = mtExpo.GetRandom();
@@ -98,6 +99,7 @@ void toyMC() {
         //hPtPosNeg.Fill(pT_pos, pT_neg);
         //hArm.Fill(alpha, qt);
         hMass.Fill(pT_inv_pos, mass);
+        hMassPt.Fill(pT_pos, mass);
       }
 
       // create directon for this pT value
