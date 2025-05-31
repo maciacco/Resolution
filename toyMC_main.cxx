@@ -44,7 +44,7 @@ int main(int const argc, const char *argv[]){
   double shift, sigma;
 
   for (int iD{0}; iD < 160; ++iD) {
-    shift = -0.03/* : -0.01)*/ + iD * 0.00025;
+    shift = -0.03/* : -0.01 */ + iD * 0.00025;
     std::cout << shift << "\n";
 
     for (int iS{0}; iS < 400; ++iS) {
@@ -54,8 +54,8 @@ int main(int const argc, const char *argv[]){
       // TH2D hArm("hArm", ";;", 200, -1., 1., 100., 0., 0.5);
       // TH2D hMass(Form("hMass_%d_%d", iD, iS), ";1 / #it{p}_{T} (#it{c}/GeV);#it{M} (GeV/#it{c}^{2})", 100, 0., 10., 1200, 0, 0.6);
       TH2D hMassPt(Form("hMass_%d_%d_vs_pt", iD, iS), ";#it{p}_{T} (GeV/#it{c});#it{M} (GeV/#it{c}^{2})", 100, 0., 10., 1200, 0, 0.6);
-
       // TH2D hEtaReso(Form("hEtaReso_%d_%d_vs_pt", iD, iS), ":#it{p}_{T} (GeV/#it{c});#eta^{rec} - #eta^{gen}", 100, 0., 10., 10000, -.5, .5);
+
       for (uint64_t i = 0; i < kNtrials; ++i) {
         float pT_k0s = gRandom->Uniform(0.1, 15.); // mtExpo.GetRandom();
         float eta = gRandom->Uniform(-0.3, 0.3);
@@ -111,7 +111,6 @@ int main(int const argc, const char *argv[]){
         // hPtPosNeg.Fill(pT_pos, pT_neg);
         // hArm.Fill(alpha, qt);
         // hMass.Fill(pT_inv_pos, mass);
-
         hMassPt.Fill(pT_pos, mass);
         // hEtaReso.Fill(pT_pos, pos->Eta() - pos_eta_in);
       }
@@ -120,7 +119,6 @@ int main(int const argc, const char *argv[]){
       // hPtPosNeg.Write();
       // hArm.Write();
       hMassPt.Write();
-      // hMassPt[iB]->Write();
       // hEtaReso.Write();
     }
   }
