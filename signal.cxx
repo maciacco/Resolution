@@ -9,7 +9,7 @@ constexpr std::string _tname = "O2mcv0tableap";
 const std::string _fname = "AO2D_mc_20250519_merged";
 constexpr double _pimass= 0.1395703918; // GeV/c/c
 
-void Signal(){
+void signal(){
   ROOT::EnableImplicitMT();
 
   std::string fname = _fname + ".root";
