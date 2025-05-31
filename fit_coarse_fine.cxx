@@ -115,126 +115,82 @@ int main(const int argc, const char* argv[]) {
         i += 1;
       }
 
-//      for (int i{0}; i < 2; ++i)_mass->Fit(tmp_dscb, "LQRM+", "", 0.47, 0.53);
-
       dir->cd();
       _mass->Write();
 
       TH1D* mass = static_cast<TH1D*>(_mass_3d->ProjectionZ(Form("_mass_1d_%d_%d_%d", iSamp, iB, dMin), 2 * (iSamp) + 1, 2 * (iSamp) + 2, iB_low, iB_up));
-//      mass->Scale(1. / mass->Integral(1, mass->GetNbinsX()));
 
-     int min_coarse_x= 0, min_coarse_y = 0, min_coarse_z;
-     int min_fine_x=0, min_fine_y=0, min_fine_z=0;
-    for (int iI{0}; iI < 3; iI++){
-      int iDmin = iI == 0 ? 0 : min_coarse_x - 12 - 1;
-      int iDmax = iI == 0 ? 160 : min_coarse_x + 12 - 1;
-      int iSmin = iI == 0 ? 0 : min_coarse_y - 12 - 1;
-      int iSmax = iI == 0 ? 400 : min_coarse_y + 12 - 1;
+      int min_coarse_x= 0, min_coarse_y = 0, min_coarse_z;
+      int min_fine_x=0, min_fine_y=0, min_fine_z=0;
+      for (int iI{0}; iI < 3; iI++){
+        int iDmin = iI == 0 ? 0 : min_coarse_x - 12 - 1;
+        int iDmax = iI == 0 ? 160 : min_coarse_x + 12 - 1;
+        int iSmin = iI == 0 ? 0 : min_coarse_y - 12 - 1;
+        int iSmax = iI == 0 ? 400 : min_coarse_y + 12 - 1;
 
-      if (iDmin < 0) iDmin = 0;
-      if (iSmin < 0) iSmin = 0;
-      if (iDmax > 160) iDmax = 160;
-      if (iSmax > 400) iSmax = 400;
-      for (int iD{iDmin}; iD < iDmax; ++iD) {
-        for (int iS{iSmin}; iS < iSmax; ++iS) {
-          if ((iD % 10 != 0 || iS % 10 != 0) && iI == 0) {
-            chi2_prof->SetBinContent(iSamp + 1, iD + 1, iS + 1, 1.e6);
-            continue;
-          }
+        if (iDmin < 0) iDmin = 0;
+        if (iSmin < 0) iSmin = 0;
+        if (iDmax > 160) iDmax = 160;
+        if (iSmax > 400) iSmax = 400;
+        for (int iD{iDmin}; iD < iDmax; ++iD) {
+          for (int iS{iSmin}; iS < iSmax; ++iS) {
+            if ((iD % 10 != 0 || iS % 10 != 0) && iI == 0) {
+              chi2_prof->SetBinContent(iSamp + 1, iD + 1, iS + 1, 1.e6);
+              continue;
+            }
 
-          double chi2_tmp = 1.e6;
-          TH2D* mass_mc_2 = static_cast<TH2D*>(f_mc->Get(Form("hMass_%d_%d%s", iD, iS, invpT ? "" : "_vs_pt")));
+            double chi2_tmp = 1.e6;
+            TH2D* mass_mc_2 = static_cast<TH2D*>(f_mc->Get(Form("hMass_%d_%d%s", iD, iS, invpT ? "" : "_vs_pt")));
 
-          if (mass_mc_2 != nullptr) {
+            if (mass_mc_2 != nullptr) {
 
-            int iB_low_mc = mass_mc_2->GetXaxis()->FindBin(p_low + 0.005f);
-            int iB_up_mc = mass_mc_2->GetXaxis()->FindBin(p_up - 0.005f);
+              int iB_low_mc = mass_mc_2->GetXaxis()->FindBin(p_low + 0.005f);
+              int iB_up_mc = mass_mc_2->GetXaxis()->FindBin(p_up - 0.005f);
 
-            TH1D* mass_mc = static_cast<TH1D*>(mass_mc_2->ProjectionY(Form("mass_mc_%d_%d_%d", iSamp, iD, iS), iB_low_mc, iB_up_mc));
-//            mass_mc->Scale(1. / mass_mc->Integral(1, mass_mc->GetNbinsX()));
+              TH1D* mass_mc = static_cast<TH1D*>(mass_mc_2->ProjectionY(Form("mass_mc_%d_%d_%d", iSamp, iD, iS), iB_low_mc, iB_up_mc));
 
-
-//            TF1* fitfun_ = new TF1(Form("fun__%d_%d", iD, iS), "gaus", 0., 0.6);
-//            fitfun_->SetParameter(0, 1.);
-//            fitfun_->SetParameter(1, 0.5);
-//            fitfun_->SetParameter(2, 0.005);
-//            fitfun_->SetParLimits(0, 0., 1.e2);
-//            fitfun_->SetParLimits(1, 0., 1.);
-//            fitfun_->SetParLimits(2, 0., 0.1);
-
-        //    for(int i{0}; i < 2; ++i)mass_mc->Fit(fitfun_, "LRQ+", "", 0., 0.6);
-
-
-// TODO: check if this has any effect
-//            mass_mc->Fit("gaus", "LQM+");
-
-            //fitfun_->FixParameter(1, fitfun_->GetParameter(1));
-            //fitfun_->FixParameter(2, fitfun_->GetParameter(2));
-
-            // gaussian smoothening
-            //for (int ii{1}; ii < mass_mc->GetNbinsX(); ++ii) {
-            //  mass_mc->SetBinContent(ii, fitfun_->Eval(mass_mc->GetXaxis()->GetBinCenter(ii)));
-           // }
-
-            TF1* fitfun = new TF1(Form("fun_%d_%d", iD, iS), DoubleSidedCB, 0., 0.6, 9);
-            // fitfun->FixParameter(0, tmp_dscb->GetParameter(0));
-            fitfun->FixParameter(1, mass_mc->GetMean() ); //fitfun_->GetParameter(1));
-            fitfun->FixParameter(2, mass_mc->GetStdDev() ); //fitfun_->GetParameter(2));
+              TF1* fitfun = new TF1(Form("fun_%d_%d", iD, iS), DoubleSidedCB, 0., 0.6, 9);
+              fitfun->FixParameter(1, mass_mc->GetMean()); // fitfun_->GetParameter(1)); // (if using gaussian fit)
+              fitfun->FixParameter(2, mass_mc->GetStdDev()); // fitfun_->GetParameter(2));
 
 #ifndef _MC_
-            for (int iP{3}; iP < 9; ++iP) {
-//              if (iP == 7) continue;
-              fitfun->FixParameter(iP, tmp_dscb->GetParameter(iP));
-            }
+              for (int iP{3}; iP < 9; ++iP) {
+                fitfun->FixParameter(iP, tmp_dscb->GetParameter(iP));
+              }
 #endif
 
-            //fitfun->SetParLimits(0, 0., 1.e2);
-            //fitfun->SetParameter(0, 0.5 * (0. + 1.e2));
-            //fitfun->FixParameter();
-            fitfun->FixParameter(0, tmp_dscb->GetParameter(0));
-//            double lim_inf = - tmp_dscb->GetParameter(3) * tmp_dscb->GetParameter(2) + tmp_dscb->GetParameter(1);
-//            double lim_sup = tmp_dscb->GetParameter(5) * tmp_dscb->GetParameter(2) + tmp_dscb->GetParameter(1);
-            mass->Fit(fitfun, "LQMR+", "", 0.46, 0.53); // lim_inf, lim_sup);
-//            fitfun->FixParameter(0, fitfun->GetParameter(0));
+              fitfun->FixParameter(0, tmp_dscb->GetParameter(0));
+              mass->Fit(fitfun, "LQMR+", "", 0.46, 0.53); // lim_inf, lim_sup);
 
-            if (iI == 2){
-              if (iD + 1 == min_fine_x && iS + 1 == min_fine_y){
-                TH1D* mass__ = static_cast<TH1D*>(_mass_3d->ProjectionZ(Form("_mass_1d_%d_%d_%d_", iSamp, iB, dMin), 2 * (iSamp) + 1, 2 * (iSamp) + 2, iB_low, iB_up));
-  //              mass__->Scale(1. / mass__->Integral(1, mass__->GetNbinsX()));
-                mass__->Fit(fitfun, "LRQM+", "", 0.46, 0.53);
-                fitfun->SetLineColor(kBlue);
-                fitfun->SetNpx(1000);
-                mass__->Write();
-                mass_mc->Write();
+              if (iI == 2){
+                if (iD + 1 == min_fine_x && iS + 1 == min_fine_y){
+                  TH1D* mass__ = static_cast<TH1D*>(_mass_3d->ProjectionZ(Form("_mass_1d_%d_%d_%d_", iSamp, iB, dMin), 2 * (iSamp) + 1, 2 * (iSamp) + 2, iB_low, iB_up));
+                  mass__->Fit(fitfun, "LRQM+", "", 0.46, 0.53);
+                  fitfun->SetLineColor(kBlue);
+                  fitfun->SetNpx(1000);
+                  mass__->Write();
+                  mass_mc->Write();
+                }
               }
+
+              // get chi2
+              chi2_tmp = fitfun->GetChisquare();
+              delete fitfun;
             }
 
-            // get chi2
-            chi2_tmp = fitfun->GetChisquare();
-
-//            delete fitfun_;
-            delete fitfun;
+            chi2_prof->SetBinContent(iSamp + 1, iD + 1, iS + 1, chi2_tmp);
           }
-
-          chi2_prof->SetBinContent(iSamp + 1, iD + 1, iS + 1, chi2_tmp);
         }
-      }
-      if (iI == 0){
-        chi2_prof->GetXaxis()->SetRangeUser(iSamp, iSamp + 1);
-        TH2D* chi2_proj = (TH2D*)chi2_prof->Project3D("zy");
-        chi2_proj->GetMinimumBin(min_coarse_x, min_coarse_y, min_coarse_z);
-        chi2_prof->GetXaxis()->SetRangeUser(0, 20);
-      }
-      if (iI ==1){
-        chi2_prof->GetXaxis()->SetRangeUser(iSamp, iSamp + 1);
-        TH2D* chi2_proj = (TH2D*)chi2_prof->Project3D("zy");
-        chi2_proj->GetMinimumBin(min_fine_x, min_fine_y, min_fine_z);
-        chi2_prof->GetXaxis()->SetRangeUser(0, 20);
-      }
-      if (iI ==2)
-        delete mass, _mass;
+        if (iI < 2){
+          chi2_prof->GetXaxis()->SetRangeUser(iSamp, iSamp + 1);
+          TH2D* chi2_proj = (TH2D*)chi2_prof->Project3D("zy");
+          i == 0 ? chi2_proj->GetMinimumBin(min_coarse_x, min_coarse_y, min_coarse_z) : chi2_proj->GetMinimumBin(min_fine_x, min_fine_y, min_fine_z);;
+          chi2_prof->GetXaxis()->SetRangeUser(0, 20);
+        }
+        else
+          delete mass, _mass;
 
-   } // iI
+      } // iI
     }
 
     fo->cd();
