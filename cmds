@@ -1,4 +1,0 @@
-./fit "0" "30" "foo_dat_0"
-./fit "30" "60" "foo_dat_0"
-./fit "60" "90" "foo_dat_0"
-./fit "90" "120" "foo_dat_0"
