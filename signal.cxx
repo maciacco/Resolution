@@ -6,7 +6,7 @@
 #include <ROOT/RDataFrame.hxx>
 
 constexpr std::string _tname = "O2mcv0tableap";
-const std::string _fname = "AO2D_mc_20250519_merged";
+const std::string _fname = "AO2D_mc_merged";
 constexpr double _pimass= 0.1395703918; // GeV/c/c
 
 void signal(){
@@ -54,7 +54,7 @@ void signal(){
                   .Define("fAlpha", "((fPxPos - fPxNeg) * fPx + (fPyPos - fPyNeg) * fPy + (fPzPos - fPzNeg) * fPz) / ((fPxPos + fPxNeg) * fPx + (fPyPos + fPyNeg) * fPy + (fPzPos + fPzNeg) * fPz)")
                   .Define("fQt", "std::sqrt( std::pow(fPyPos * fPz - fPzPos * fPy, 2.) + std::pow(fPzPos * fPx - fPxPos * fPz, 2.) + std::pow(fPxPos * fPy - fPyPos * fPx, 2.) ) / std::sqrt(fP2)")
                   // .Filter("std::hypot(fPxPos, fPyPos) > 0.3 && std::hypot(fPxPos, fPyPos) < 0.4 && std::hypot(fPxNeg, fPyNeg) > 0.3 && std::hypot(fPxNeg, fPyNeg) < 0.4")
-                  .Filter("fMass > 0.46 && fMass < 0.53 && std::abs(fAlpha) < 0.1 && std::abs(fEta) < 0.3")
+                  .Filter("fMass > 0.46 && fMass < 0.53 && std::abs(fAlpha) < 0.05 && std::abs(fEta) < 0.3")
                   .Define("RndmId", "fPx - fPx + gRandom->Integer(20)")
                   .Define("fPtInv", "1. / fPtPos")
                   .Define("fPtPosMC", "std::hypot(fPxPosMC, fPyPosMC)")
@@ -74,7 +74,7 @@ void signal(){
 
   auto h9 = df_rec.Histo2D({"hMassK0sPtK0s", ";#it{p}_{T}^{K0s} (GeV/#it{c});#it{M} (GeV/#it{c}^{2})", 100, 0., 10., 1200, 0., 0.6}, "fK0sPt", "fMass");
 
-  TFile *fo = TFile::Open("foo_dat_1.root", "recreate");
+  TFile *fo = TFile::Open("foo_dat_2.root", "recreate");
   fo->cd();
   h->Write();
   h1->Write();

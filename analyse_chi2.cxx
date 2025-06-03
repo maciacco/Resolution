@@ -34,6 +34,7 @@ void analyse_chi2(const char* ifname = "fitsCoarseFineM", const char* ofname = "
       chi2_prof_3d->GetXaxis()->SetRangeUser(iS, iS + 1);
       TH2D* chi2_prof = static_cast<TH2D*>(chi2_prof_3d->Project3D("zy"));
       int bin_x_min = 0, bin_y_min = 0, bin_z_min = 0;
+      chi2_prof->GetYaxis()->SetRangeUser(0.0025, 0.2);
       chi2_prof->GetMinimumBin(bin_x_min, bin_y_min, bin_z_min);
 
       if (iB == 4) {
