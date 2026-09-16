@@ -34,16 +34,29 @@ def run_signal(cfg: dict, is_mc: bool):
     df['fP2'] = df['fPx']**2 + df['fPy']**2 + df['fPz']**2
     df['fPtPos'] = np.hypot(df['fPxPos'], df['fPyPos'])
     df['fPtNeg'] = np.hypot(df['fPxNeg'], df['fPyNeg'])
+    df['fOneOverPtPos'] = 1.0 / df['fPtPos']
+    df['fOneOverPtNeg'] = 1.0 / df['fPtNeg']
     df['fP2Pos'] = df['fPxPos']**2 + df['fPyPos']**2 + df['fPzPos']**2
     df['fP2Neg'] = df['fPxNeg']**2 + df['fPyNeg']**2 + df['fPzNeg']**2
     df['fEPos'] = np.sqrt(PIMASS**2 + df['fP2Pos'])
     df['fENeg'] = np.sqrt(PIMASS**2 + df['fP2Neg'])
     df['fK0sPt'] = np.hypot(df['fPx'], df['fPy'])
+    df['fK0sOneOverPt'] = 1.0 / df['fK0sPt']
     df['fMass'] = np.sqrt((df['fEPos'] + df['fENeg'])**2 - df['fP2'])
     num = (df['fPxPos']**2 - df['fPxNeg']**2) + (df['fPyPos']**2 - df['fPyNeg']**2) + (df['fPzPos']**2 - df['fPzNeg']**2)
     den = (df['fPxPos'] + df['fPxNeg'])**2 + (df['fPyPos'] + df['fPyNeg'])**2 + (df['fPzPos'] + df['fPzNeg'])**2
     df['fAlpha'] = num / den
     df['fQt'] = np.sqrt((df['fPyPos'] * df['fPz'] - df['fPzPos'] * df['fPy'])**2 + (df['fPzPos'] * df['fPx'] - df['fPxPos'] * df['fPz'])**2 + (df['fPxPos'] * df['fPy'] - df['fPyPos'] * df['fPx'])**2) / np.sqrt(df['fP2'])
+    if is_mc:
+        df['fPxMC'] = df['fPxPosMC'] + df['fPxNegMC']
+        df['fPyMC'] = df['fPyPosMC'] + df['fPyNegMC']
+        df['fPtPosMC'] = np.hypot(df['fPxPosMC'], df['fPyPosMC'])
+        df['fPtNegMC'] = np.hypot(df['fPxNegMC'], df['fPyNegMC'])
+        df['fK0sPtMC'] = np.hypot(df['fPxMC'], df['fPyMC'])
+        df['fOneOverPtPosMC'] = 1.0 / df['fPtPosMC']
+        df['fOneOverPtNegMC'] = 1.0 / df['fPtNegMC']
+        df['fK0sOneOverPtMC'] = 1.0 / df['fK0sPtMC']
+        df['fPtMC'] = np.hypot(df['fPxMC'], df['fPyMC'])
 
     df = df.query(f"fMass > {cfg['mass_min']} and fMass < {cfg['mass_max']} and abs(fEta) < {cfg['eta_cut']} and abs(fAlpha) < {cfg['alpha_cut']} and fQt > {cfg['qt_cut']}")
 

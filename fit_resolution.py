@@ -9,6 +9,13 @@ import yaml
 
 PIMASS = 0.13957018
 
+# Limits of the smearing parameters in the Minuit fit, also used to flag fits stuck at a limit
+DELTA_PT_LIMITS = (-0.2, 0.2)
+SIGMA_PT_LIMITS = (1e-5, 0.2)
+SIGMA_ANG_LIMITS = (-0.2, 0.2)
+PAR_NAMES = ["delta_one_over_pt", "sigma_one_over_pt", "sigma_eta", "sigma_phi"]
+PAR_LIMITS = dict(zip(PAR_NAMES, (DELTA_PT_LIMITS, SIGMA_PT_LIMITS, SIGMA_ANG_LIMITS, SIGMA_ANG_LIMITS)))
+
 
 def load_sigma_eta_phi(path, pt_bins):
     """Return [(sigma_eta, sigma_phi), ...], one per pT bin, from get_sigma_eta_phi.py output."""
@@ -196,8 +203,8 @@ def load_decays(path, tree_name, pt_bins, max_per_bin, seed,
     return decays
 
 def smeared_mass(data, delta, sigma, sigma_eta, sigma_phi):
-    pt_p = data["pos_pt"] + delta + sigma * data["z_pt_p"]
-    pt_n = data["neg_pt"] + delta + sigma * data["z_pt_n"]
+    one_over_pt_p = 1.0 / data["pos_pt"] + delta + sigma * data["z_pt_p"]
+    one_over_pt_n = 1.0 / data["neg_pt"] + delta + sigma * data["z_pt_n"]
     eta_p = data["pos_eta"] + sigma_eta * data["z_eta_p"]
     eta_n = data["neg_eta"] + sigma_eta * data["z_eta_n"]
     phi_p = data["pos_phi"] + sigma_phi * data["z_phi_p"]
@@ -208,6 +215,8 @@ def smeared_mass(data, delta, sigma, sigma_eta, sigma_phi):
     cosh_p = np.sqrt(1.0 + sinh_p**2)
     cosh_n = np.sqrt(1.0 + sinh_n**2)
     c12 = cos_dphi + sinh_p * sinh_n
+    pt_p = 1.0 / one_over_pt_p
+    pt_n = 1.0 / one_over_pt_n
     ok = (pt_p > 0.0) & (pt_n > 0.0)
     pt_p, pt_n = pt_p[ok], pt_n[ok]
     e1 = np.sqrt(PIMASS**2 + (pt_p * cosh_p[ok]) ** 2)
@@ -254,35 +263,36 @@ def fit_bin(data, counts, edges, mass_min, mass_max, is_mc, tag, fixed_sigma, ma
     chi2, last = make_chi2(data, hist, func, mass_min, mass_max, is_mc, tail_init, lo, hi)
     functor = ROOT.Math.Functor(chi2, 4)
 
-    # Starting points for (deltapt, sigmapt, sigma_eta, sigma_phi; the first is the nominal seed,
+    # Starting points for (delta_one_over_pt, sigma_one_over_pt, sigma_eta, sigma_phi; the first is the nominal seed,
     # the rest are fallbacks, tried only if Migrad fails to find a valid minimum
     seeds = [(0.0, 0.01, 0.0, 0.0), (0.0, 0.005, 0.0, 0.0), (0.0, 0.02, 0.0, 0.0), (0.0, 0.05, 0.0, 0.0),
              (-0.01, 0.01, 0.0, 0.0), (0.01, 0.01, 0.0, 0.0), (-0.03, 0.03, 0.0, 0.0), (0.03, 0.03, 0.0, 0.0)]
 
     best = None
-    for s_delta_pt, s_sigma_pt, s_sigma_eta, s_sigma_phi in seeds[: 1 + max_retries]:
+    for s_delta_one_over_pt, s_sigma_one_over_pt, s_sigma_eta, s_sigma_phi in seeds[: 1 + max_retries]:
         m = ROOT.Math.Factory.CreateMinimizer("Minuit2", "Migrad")
         m.SetFunction(functor)
         m.SetMaxFunctionCalls(100000)
         m.SetTolerance(0.001)
         m.SetStrategy(1)
         m.SetPrintLevel(0)
-        m.SetLimitedVariable(0, "deltapt", s_delta_pt, 1e-4, -0.2, 0.2)
-        m.SetLimitedVariable(1, "sigmapt", s_sigma_pt, 1e-4, 1e-5, 0.2)
+        m.SetLimitedVariable(0, "delta_one_over_pt", s_delta_one_over_pt, 1e-4, *DELTA_PT_LIMITS)
+        m.SetLimitedVariable(1, "sigma_one_over_pt", s_sigma_one_over_pt, 1e-4, *SIGMA_PT_LIMITS)
         if fixed_sigma is not None:
             m.SetFixedVariable(2, "sigmaeta", fixed_sigma[0])
             m.SetFixedVariable(3, "sigmaphi", fixed_sigma[1])
         else:
-            m.SetLimitedVariable(2, "sigmaeta", s_sigma_eta, 1e-4, -0.2, 0.2)
-            m.SetLimitedVariable(3, "sigmaphi", s_sigma_phi, 1e-4, -0.2, 0.2)
+            m.SetLimitedVariable(2, "sigmaeta", s_sigma_eta, 1e-4, *SIGMA_ANG_LIMITS)
+            m.SetLimitedVariable(3, "sigmaphi", s_sigma_phi, 1e-4, *SIGMA_ANG_LIMITS)
 
         ok = bool(m.Minimize())
         cand = {"ok": ok, "status": int(m.Status()), "chi2": m.MinValue(),
-                "delta_pt": m.X()[0], "delta_pt_err": m.Errors()[0],
-                "sigma_pt": m.X()[1], "sigma_pt_err": m.Errors()[1],
+                "cov_status": int(m.CovMatrixStatus()),  # 3 = full accurate covariance
+                "delta_one_over_pt": m.X()[0], "delta_one_over_pt_err": m.Errors()[0],
+                "sigma_one_over_pt": m.X()[1], "sigma_one_over_pt_err": m.Errors()[1],
                 "sigma_eta": m.X()[2], "sigma_eta_err": m.Errors()[2],
                 "sigma_phi": m.X()[3], "sigma_phi_err": m.Errors()[3],
-                "seed": (s_delta_pt, s_sigma_pt, s_sigma_eta, s_sigma_phi)}
+                "seed": (s_delta_one_over_pt, s_sigma_one_over_pt, s_sigma_eta, s_sigma_phi)}
         # prefer a valid minimum (ok), then the lowest chi2
         if best is None or (cand["ok"], cand["status"] == 0, -cand["chi2"]) > (best["ok"], best["status"] == 0, -best["chi2"]):
             best = cand
@@ -291,24 +301,65 @@ def fit_bin(data, counts, edges, mass_min, mass_max, is_mc, tag, fixed_sigma, ma
         if ok and best["status"] == 0:
             break
 
-
-    chi2([best["delta_pt"], best["sigma_pt"], best["sigma_eta"], best["sigma_phi"]])
+    chi2([best["delta_one_over_pt"], best["sigma_one_over_pt"], best["sigma_eta"], best["sigma_phi"]])
 
     n_free = 2 if fixed_sigma is not None else 4  # free smearing params (eta/phi fixed => 2)
     ndf = max(last["ndf"] - n_free, 1)
     return {
         "ok": best["ok"],
         "status": best["status"],  # Minuit2 status: 0 = converged OK
+        "cov_status": best["cov_status"],
+        "free_pars": PAR_NAMES[:n_free],
         "seed": best["seed"],
-        "delta_pt": best["delta_pt"], "delta_pt_err": best["delta_pt_err"],
-        "sigma_pt": best["sigma_pt"], "sigma_pt_err": best["sigma_pt_err"],
+        "delta_one_over_pt": best["delta_one_over_pt"], "delta_one_over_pt_err": best["delta_one_over_pt_err"],
+        "sigma_one_over_pt": best["sigma_one_over_pt"], "sigma_one_over_pt_err": best["sigma_one_over_pt_err"],
         "sigma_eta": best["sigma_eta"], "sigma_eta_err": best["sigma_eta_err"],
         "sigma_phi": best["sigma_phi"], "sigma_phi_err": best["sigma_phi_err"],
         "chi2": best["chi2"], "ndf": ndf,
         "mu": last["mu"], "width": last["width"],
         "func": func,
-        "corr": corr
+        "corr": corr,
     }
+
+
+def fit_issues(r):
+    """Return the reasons why a pT-bin fit should not be trusted (empty list if none)."""
+    issues = []
+    if not r.get("ok", True):
+        issues.append("minimize failed")
+    if r.get("status", 0) != 0:
+        issues.append(f"status {r['status']}")
+    if r.get("cov_status", 3) < 3:
+        issues.append(f"cov status {r['cov_status']}")
+    for par in r.get("free_pars", []):
+        lo, hi = PAR_LIMITS[par]
+        if min(r[par] - lo, hi - r[par]) < 1e-3 * (hi - lo):
+            issues.append(f"{par} at limit")
+        err = r[f"{par}_err"]
+        if not np.isfinite(err) or err <= 0.0:
+            issues.append(f"{par} error not finite/zero")
+    return issues
+
+
+
+def fit_issues(r):
+    """Return the reasons why a pT-bin fit should not be trusted (empty list if none)."""
+    issues = []
+    if not r.get("ok", True):
+        issues.append("minimize failed")
+    if r.get("status", 0) != 0:
+        issues.append(f"status {r['status']}")
+    if r.get("cov_status", 3) < 3:
+        issues.append(f"cov status {r['cov_status']}")
+    for par in r.get("free_pars", []):
+        lo, hi = PAR_LIMITS[par]
+        if min(r[par] - lo, hi - r[par]) < 1e-3 * (hi - lo):
+            issues.append(f"{par} at limit")
+        err = r[f"{par}_err"]
+        if not np.isfinite(err) or err <= 0.0:
+            issues.append(f"{par} error not finite/zero")
+    return issues
+
 
 def to_th1(name, counts, edges, err_floor=0.0):
     h = ROOT.TH1D(name, name, len(counts), edges[0], edges[-1])
@@ -464,7 +515,7 @@ def _rebuild_func(r, is_mc, tag):
 
 
 def fit_all_bins(decays, histos, mass_min, mass_max, is_mc, outdir, sigma_eta_phi, grid_search=False):
-    header = f"{'pt_lo':>6} {'pt_hi':>6} {'delta[MeV]':>14} {'sigma pT[MeV]':>14} {'sigma eta':>14} {'sigma phi':>14} {'chi2/ndf':>10} {'status':>7}"
+    header = f"{'pt_lo':>6} {'pt_hi':>6} {'delta[1/MeV]':>14} {'sigma pT[1/MeV]':>14} {'sigma eta':>14} {'sigma phi':>14} {'chi2/ndf':>10} {'status':>7} {'cov':>4}"
     print("\n" + header)
     print("-" * len(header))
 
@@ -501,6 +552,7 @@ def fit_all_bins(decays, histos, mass_min, mass_max, is_mc, outdir, sigma_eta_ph
         func = _rebuild_func(r, is_mc, tag)
         r["func"] = func
         r.update(lo=low, hi=high)
+        r["issues"] = fit_issues(r)
         results.append(r)
 
         centers = 0.5 * (edges[:-1] + edges[1:])
@@ -511,6 +563,7 @@ def fit_all_bins(decays, histos, mass_min, mass_max, is_mc, outdir, sigma_eta_ph
         to_th1(f"data_{suffix}", counts, edges).Write()
         to_th1(f"template_{suffix}", model, edges).Write()
         func.Write(f"fit_func_{suffix}")
+        ROOT.TNamed(f"fit_quality_{suffix}", "; ".join(r["issues"]) or "ok").Write()
 
         if not is_mc:
             signal_func = get_signal_func(func)
@@ -523,11 +576,20 @@ def fit_all_bins(decays, histos, mass_min, mass_max, is_mc, outdir, sigma_eta_ph
             bkg_func.Write(f"fit_bkg_func_{suffix}")
 
         print(f"{low:6.2f} {high:6.2f} "
-              f"{1e3*r['delta_pt']:7.3f}±{1e3*r['delta_pt_err']:<6.3f} "
-              f"{1e3*r['sigma_pt']:7.3f}±{1e3*r['sigma_pt_err']:<6.3f} "
+              f"{1e3*r['delta_one_over_pt']:7.3f}±{1e3*r['delta_one_over_pt_err']:<6.3f} "
+              f"{1e3*r['sigma_one_over_pt']:7.3f}±{1e3*r['sigma_one_over_pt_err']:<6.3f} "
               f"{r['sigma_eta']:7.3f}±{r['sigma_eta_err']:<6.3f} "
               f"{r['sigma_phi']:7.3f}±{r['sigma_phi_err']:<6.3f} "
-              f"{r['chi2']/r['ndf']:10.2f} {r['status']:7d}")
+              f"{r['chi2']/r['ndf']:10.2f} {r['status']:7d} {r.get('cov_status', -1):4d}"
+              + (f"  !! {'; '.join(r['issues'])}" if r["issues"] else ""))
+
+    flagged = [r for r in results if r["issues"]]
+    if flagged:
+        print(f"\nWARNING: {len(flagged)} bin(s) failed the fit-quality checks:")
+        for r in flagged:
+            print(f"  {r['lo']:.2f}-{r['hi']:.2f}: {'; '.join(r['issues'])}")
+    else:
+        print("\nAll bins passed the fit-quality checks.")
 
     return results
 
@@ -538,18 +600,32 @@ def write_graphs(results, label, outdir):
     outdir.cd()
     x = np.array([0.5 * (r["lo"] + r["hi"]) for r in results])
     ex = np.array([0.5 * (r["hi"] - r["lo"]) for r in results])
-    for key in ("delta_pt", "sigma_pt", "sigma_eta", "sigma_phi"):
+    for key in PAR_NAMES:
         y = np.array([r[key] for r in results])
         ey = np.array([r[f"{key}_err"] for r in results])
         g = ROOT.TGraphErrors(len(x), x, y, ex, ey)
         g.SetName(f"{key}_vs_pt_{label}")
-        g.SetTitle(f"{key} vs p_{{T}} ({label});K^{{0}}_{{S}} p_{{T}} (GeV/c);{key} (GeV/c)")
+        g.SetTitle(f"{key} vs p_{{T}} ({label});K^{{0}}_{{S}} p_{{T}} (GeV/c);{key} (c/GeV)")
         g.SetMarkerStyle(20)
         g.Write()
+        if key not in ("delta_one_over_pt", "sigma_one_over_pt"):
+            continue  # normalising the angular smearing to pT is meaningless
         # Normalized quantities
-        g = ROOT.TGraphErrors(len(x), x, y / x, ex, ey / x)
-        g.SetName(f"{key}pt_over_pt_vs_pt_{label}")
-        g.SetTitle(f"{key}pt/pT vs p_{{T}} ({label});K^{{0}}_{{S}} p_{{T}} (GeV/c);{key}pt/p_{{T}}")
+        g = ROOT.TGraphErrors(len(x), x, y * x, ex, ey * x)
+        g.SetName(f"{key}_over_one_over_pt_vs_pt_{label}")
+        g.SetTitle(f"{key}/(1/p_{{T}}) vs p_{{T}} ({label});K^{{0}}_{{S}} p_{{T}} (GeV/c);{key}/(1/p_{{T}})")
+        g.SetMarkerStyle(20)
+        g.Write()
+
+    # Fit-quality monitors: Minuit status, covariance-matrix status and the fit_issues flag
+    ey0 = np.zeros(len(x))
+    monitors = (("fit_status", [r["status"] for r in results]),
+                ("fit_cov_status", [r.get("cov_status", -1) for r in results]),
+                ("fit_flag", [1 if r["issues"] else 0 for r in results]))
+    for name, vals in monitors:
+        g = ROOT.TGraphErrors(len(x), x, np.array(vals, dtype=np.float64), ex, ey0)
+        g.SetName(f"{name}_vs_pt_{label}")
+        g.SetTitle(f"{name} vs p_{{T}} ({label});K^{{0}}_{{S}} p_{{T}} (GeV/c);{name}")
         g.SetMarkerStyle(20)
         g.Write()
 
@@ -563,15 +639,11 @@ def write_graphs(results, label, outdir):
         corr = r["corr"]
         histos_corr.append(ROOT.TH2D(f"corr_{r['lo']}_{r['hi']}_{label}", f"Correlation (pT {r['lo']:.2f}-{r['hi']:.2f} GeV/c);;",
                        len(corr), 0, len(corr), len(corr), 0, len(corr)))
-        histos_corr[-1].GetXaxis().SetBinLabel(1, "delta_pt")
-        histos_corr[-1].GetXaxis().SetBinLabel(2, "sigma_pt")
-        if len(corr) > 2:
-            histos_corr[-1].GetXaxis().SetBinLabel(3, "sigma_eta")
-            histos_corr[-1].GetXaxis().SetBinLabel(4, "sigma_phi")
-            histos_corr[-1].GetYaxis().SetBinLabel(4, "delta_pt")
-            histos_corr[-1].GetYaxis().SetBinLabel(3, "sigma_pt")
-        histos_corr[-1].GetYaxis().SetBinLabel(2, "sigma_eta")
-        histos_corr[-1].GetYaxis().SetBinLabel(1, "sigma_phi")
+        # y runs top-down (bin n-i) so the diagonal goes from top-left to bottom-right
+        n = len(corr)
+        for i, name in enumerate(PAR_NAMES[:n]):
+            histos_corr[-1].GetXaxis().SetBinLabel(i + 1, name)
+            histos_corr[-1].GetYaxis().SetBinLabel(n - i, name)
 
         for j in range(len(corr)):
             for k in range(len(corr)):
@@ -630,7 +702,7 @@ def main(config_path):
     print(f"\nWrote results to {cfg['fit']['output']}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Fit the K0s track-pT smearing (deltapt, sigmapt) per pT bin.")
+    parser = argparse.ArgumentParser(description="Fit the K0s track-pT smearing (delta_one_over_pt, sigma_one_over_pt) per pT bin.")
     parser.add_argument("--config", default="config/config.yaml", help="path to config.yaml")
     args = parser.parse_args()
 

@@ -1,20 +1,19 @@
 #include <TF1.h>
 #include <TFile.h>
-#include <TGenPhaseSpace.h>
-#include <TH2D.h>
 #include <TTree.h>
-#include <TLorentzVector.h> // ugly, but TGenPhaseSpace uses this.
+#include <TLorentzVector.h>
+#include <TVector3.h>
 #include <TMath.h>
 #include <TRandom3.h>
 #include <TROOT.h>
-#include <TString.h>
 
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <thread>
 #include <vector>
 
-constexpr double kK0sMass = 0.497648;
+constexpr double kK0sMass = 0.497611;
 constexpr double kPiMass = 0.1395703918;
 
 // Store plain kinematics so the smearing loop never mutates shared data
@@ -23,13 +22,24 @@ struct DecayEvent {
   float neg_pt, neg_eta, neg_phi;
 };
 
-void simulate_decays(char* name, int kNtrials, int seed, unsigned nThreads = 30){
+void decay_two_body(const TLorentzVector& mother, double m1, double m2, TRandom& rng,
+                    TLorentzVector& d1, TLorentzVector& d2) {
+  const double M = mother.M();
+  const double pStar = std::sqrt((M * M - (m1 + m2) * (m1 + m2)) * (M * M - (m1 - m2) * (m1 - m2))) / (2. * M);
+  const double cosTheta = rng.Uniform(-1., 1.);
+  const double sinTheta = std::sqrt(1. - cosTheta * cosTheta);
+  const double phi = rng.Uniform(0., TMath::TwoPi());
+  const TVector3 p(pStar * sinTheta * std::cos(phi), pStar * sinTheta * std::sin(phi), pStar * cosTheta);
+  d1.SetVectM(p, m1);
+  d2.SetVectM(-p, m2);
+  const TVector3 boost = mother.BoostVector();
+  d1.Boost(boost);
+  d2.Boost(boost);
+}
+
+void simulate_decays(const char* name, int kNtrials, int seed, unsigned nThreads = 30){
   ROOT::EnableThreadSafety();
 
-  TRandom3 seedRng(seed);
-
-  TLorentzVector mother;
-  TGenPhaseSpace gen2Pi;
   const double massesDau[2]{kPiMass, kPiMass};
 
   TF1 mtExpo("mtExpo","[0]*x*std::exp(-std::hypot([2], x)/[1])", 0.1, 20.);
@@ -49,21 +59,16 @@ void simulate_decays(char* name, int kNtrials, int seed, unsigned nThreads = 30)
         const size_t iStart    = t * blockSize;
         const size_t iEnd      = (t + 1 == nThreads) ? static_cast<size_t>(kNtrials) : iStart + blockSize;
         TRandom3 rng(static_cast<unsigned>(seed) + t);
-        gRandom = &rng; // TGenPhaseSpace::Generate() uses gRandom internally
-        TLorentzVector loc_mother;
-        TGenPhaseSpace loc_gen;
+        TLorentzVector loc_mother, pos, neg;
         for (size_t i = iStart; i < iEnd; ++i) {
           const float pT_k0s = rng.Uniform(0.1, 20.); // mtExpo.GetRandom();
           const float eta    = rng.Uniform(-0.3, 0.3);
           const float phi    = rng.Uniform(0, TMath::TwoPi());
           loc_mother.SetPtEtaPhiM(pT_k0s, eta, phi, kK0sMass);
-          loc_gen.SetDecay(loc_mother, 2, massesDau);
-          loc_gen.Generate();
-          const TLorentzVector* pos = loc_gen.GetDecay(0);
-          const TLorentzVector* neg = loc_gen.GetDecay(1);
+          decay_two_body(loc_mother, massesDau[0], massesDau[1], rng, pos, neg);
           events[i] = {
-            (float)pos->Pt(), (float)pos->Eta(), (float)pos->Phi(),
-            (float)neg->Pt(), (float)neg->Eta(), (float)neg->Phi()
+            (float)pos.Pt(), (float)pos.Eta(), (float)pos.Phi(),
+            (float)neg.Pt(), (float)neg.Eta(), (float)neg.Phi()
           };
         }
       });
@@ -74,7 +79,7 @@ void simulate_decays(char* name, int kNtrials, int seed, unsigned nThreads = 30)
               << " s\n";
   }
 
-  // Fill TTRee
+  // Fill TTree
   TFile fout(name, "RECREATE");
   TTree tree("decays", "K0s -> pi+ pi- kinematics");
   DecayEvent buf;
@@ -92,7 +97,7 @@ void simulate_decays(char* name, int kNtrials, int seed, unsigned nThreads = 30)
   }
   tree.Write();
   fout.Close();
-  std::cout << "Wrote " << kNtrials << " events to " << name << "in "
+  std::cout << "Wrote " << kNtrials << " events to " << name << " in "
             << std::chrono::duration<double>(std::chrono::steady_clock::now() - twrite).count()
             << " s\n";
 }
